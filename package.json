@@ -1,0 +1,21 @@
+{
+  "name": "carwash-os",
+  "private": true,
+  "packageManager": "pnpm@9.15.4",
+  "scripts": {
+    "dev": "npm --prefix apps/web run dev -- --host 127.0.0.1 --port 5173",
+    "dev:full": "turbo dev",
+    "build": "turbo build",
+    "lint": "turbo lint",
+    "setup": "pnpm db:generate && pnpm db:push && pnpm db:seed",
+    "db:generate": "pnpm --filter @carwash/api db:generate",
+    "db:migrate": "pnpm --filter @carwash/api db:migrate",
+    "db:push": "pnpm --filter @carwash/api db:push",
+    "db:seed": "pnpm --filter @carwash/api db:seed",
+    "db:studio": "pnpm --filter @carwash/api db:studio"
+  },
+  "devDependencies": {
+    "turbo": "^2.5.4",
+    "typescript": "^5.8.3"
+  }
+}

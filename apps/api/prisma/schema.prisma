@@ -1,0 +1,420 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  OWNER
+  MANAGER
+  STAFF
+}
+
+enum ZoneType {
+  PARK
+  EXTERIOR
+  INTERIOR
+  DETAILING
+  DELIVERY
+}
+
+enum ZoneStatus {
+  EMPTY
+  OCCUPIED
+  OUT_OF_SERVICE
+}
+
+enum WorkOrderStatus {
+  ACCEPTED
+  PARKED
+  EXTERIOR_WASH
+  INTERIOR_WASH
+  DRYING
+  DETAILING
+  QUALITY_CHECK
+  READY
+  DELIVERED
+  CANCELLED
+}
+
+enum PaymentStatus {
+  UNPAID
+  PAID
+}
+
+enum PaymentMethod {
+  CASH
+  CARD
+  OTHER
+}
+
+enum PhotoCategory {
+  FRONT
+  BACK
+  LEFT
+  RIGHT
+  INTERIOR
+  DELIVERY
+}
+
+enum DamageType {
+  SCRATCH
+  DENT
+  BROKEN
+  PAINT
+}
+
+enum AppointmentStatus {
+  PENDING
+  CONFIRMED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum WorkOrderSource {
+  staff
+  camera
+}
+
+model Business {
+  id            String   @id @default(uuid()) @db.Uuid
+  name          String
+  phone         String?
+  address       String?
+  workingHours  Json?    @map("working_hours")
+  workOrderSeq  Int      @default(1000) @map("work_order_seq")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+  deletedAt     DateTime? @map("deleted_at")
+
+  users         User[]
+  customers     Customer[]
+  vehicles      Vehicle[]
+  services      Service[]
+  zones         Zone[]
+  staff         Staff[]
+  workOrders    WorkOrder[]
+  appointments  Appointment[]
+
+  @@map("businesses")
+}
+
+model User {
+  id           String    @id @default(uuid()) @db.Uuid
+  businessId   String    @map("business_id") @db.Uuid
+  name         String
+  email        String    @unique
+  phone        String?
+  passwordHash String    @map("password_hash")
+  role         UserRole
+  isActive     Boolean   @default(true) @map("is_active")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+  deletedAt    DateTime? @map("deleted_at")
+
+  business     Business  @relation(fields: [businessId], references: [id])
+  staffProfile Staff?
+  refreshTokens RefreshToken[]
+  createdWorkOrders WorkOrder[] @relation("WorkOrderCreatedBy")
+  statusLogs   WorkOrderStatusLog[]
+  photos       WorkOrderPhoto[]
+
+  @@index([businessId])
+  @@map("users")
+}
+
+model RefreshToken {
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  tokenHash String    @map("token_hash")
+  expiresAt DateTime  @map("expires_at")
+  revokedAt DateTime? @map("revoked_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([tokenHash])
+  @@map("refresh_tokens")
+}
+
+model Customer {
+  id         String    @id @default(uuid()) @db.Uuid
+  businessId String    @map("business_id") @db.Uuid
+  firstName  String    @map("first_name")
+  lastName   String    @map("last_name")
+  phone      String
+  email      String?
+  note       String?
+  createdAt  DateTime  @default(now()) @map("created_at")
+  updatedAt  DateTime  @updatedAt @map("updated_at")
+  deletedAt  DateTime? @map("deleted_at")
+
+  business   Business  @relation(fields: [businessId], references: [id])
+  vehicles   Vehicle[]
+  workOrders WorkOrder[]
+  appointments Appointment[]
+
+  @@unique([businessId, phone])
+  @@index([businessId])
+  @@map("customers")
+}
+
+model Vehicle {
+  id         String    @id @default(uuid()) @db.Uuid
+  businessId String    @map("business_id") @db.Uuid
+  customerId String    @map("customer_id") @db.Uuid
+  plate      String
+  brand      String?
+  model      String?
+  year       Int?
+  color      String?
+  note       String?
+  createdAt  DateTime  @default(now()) @map("created_at")
+  updatedAt  DateTime  @updatedAt @map("updated_at")
+  deletedAt  DateTime? @map("deleted_at")
+
+  business   Business  @relation(fields: [businessId], references: [id])
+  customer   Customer  @relation(fields: [customerId], references: [id])
+  workOrders WorkOrder[]
+  damages    DamageRecord[]
+  appointments Appointment[]
+
+  @@unique([businessId, plate])
+  @@index([businessId])
+  @@index([customerId])
+  @@map("vehicles")
+}
+
+model Service {
+  id                String    @id @default(uuid()) @db.Uuid
+  businessId        String    @map("business_id") @db.Uuid
+  name              String
+  price             Decimal   @db.Decimal(10, 2)
+  estimatedMinutes  Int       @map("estimated_minutes")
+  zoneType          ZoneType  @map("zone_type")
+  isActive          Boolean   @default(true) @map("is_active")
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+  deletedAt         DateTime? @map("deleted_at")
+
+  business          Business  @relation(fields: [businessId], references: [id])
+  workOrderServices WorkOrderService[]
+  appointmentServices AppointmentService[]
+
+  @@index([businessId])
+  @@map("services")
+}
+
+model Zone {
+  id                  String     @id @default(uuid()) @db.Uuid
+  businessId          String     @map("business_id") @db.Uuid
+  name                String
+  type                ZoneType
+  status              ZoneStatus @default(EMPTY)
+  currentWorkOrderId  String?    @unique @map("current_work_order_id") @db.Uuid
+  createdAt           DateTime   @default(now()) @map("created_at")
+  updatedAt           DateTime   @updatedAt @map("updated_at")
+  deletedAt           DateTime?  @map("deleted_at")
+
+  business            Business   @relation(fields: [businessId], references: [id])
+  currentWorkOrder    WorkOrder? @relation("ZoneCurrentWorkOrder", fields: [currentWorkOrderId], references: [id])
+  workOrders          WorkOrder[] @relation("WorkOrderCurrentZone")
+  statusLogs          WorkOrderStatusLog[]
+
+  @@index([businessId])
+  @@map("zones")
+}
+
+model Staff {
+  id         String    @id @default(uuid()) @db.Uuid
+  businessId String    @map("business_id") @db.Uuid
+  userId     String?   @unique @map("user_id") @db.Uuid
+  name       String
+  phone      String?
+  specialty  String?
+  isActive   Boolean   @default(true) @map("is_active")
+  createdAt  DateTime  @default(now()) @map("created_at")
+  updatedAt  DateTime  @updatedAt @map("updated_at")
+  deletedAt  DateTime? @map("deleted_at")
+
+  business   Business  @relation(fields: [businessId], references: [id])
+  user       User?     @relation(fields: [userId], references: [id])
+  workOrders WorkOrder[]
+  statusLogs WorkOrderStatusLog[]
+
+  @@index([businessId])
+  @@map("staff")
+}
+
+model WorkOrder {
+  id                  String          @id @default(uuid()) @db.Uuid
+  businessId          String          @map("business_id") @db.Uuid
+  code                String
+  vehicleId           String          @map("vehicle_id") @db.Uuid
+  customerId          String          @map("customer_id") @db.Uuid
+  status              WorkOrderStatus @default(ACCEPTED)
+  source              WorkOrderSource @default(staff)
+  currentZoneId       String?         @map("current_zone_id") @db.Uuid
+  assignedStaffId     String?         @map("assigned_staff_id") @db.Uuid
+  note                String?
+  estimatedDeliveryAt DateTime?       @map("estimated_delivery_at")
+  acceptedAt          DateTime        @default(now()) @map("accepted_at")
+  deliveredAt         DateTime?       @map("delivered_at")
+  cancelledReason     String?         @map("cancelled_reason")
+  totalAmount         Decimal         @default(0) @map("total_amount") @db.Decimal(10, 2)
+  paymentStatus       PaymentStatus   @default(UNPAID) @map("payment_status")
+  paymentMethod       PaymentMethod?  @map("payment_method")
+  createdBy           String          @map("created_by") @db.Uuid
+  createdAt           DateTime        @default(now()) @map("created_at")
+  updatedAt           DateTime        @updatedAt @map("updated_at")
+  deletedAt           DateTime?       @map("deleted_at")
+
+  business            Business        @relation(fields: [businessId], references: [id])
+  vehicle             Vehicle         @relation(fields: [vehicleId], references: [id])
+  customer            Customer        @relation(fields: [customerId], references: [id])
+  currentZone         Zone?           @relation("WorkOrderCurrentZone", fields: [currentZoneId], references: [id])
+  occupyingZone       Zone?           @relation("ZoneCurrentWorkOrder")
+  assignedStaff       Staff?          @relation(fields: [assignedStaffId], references: [id])
+  createdByUser       User            @relation("WorkOrderCreatedBy", fields: [createdBy], references: [id])
+  services            WorkOrderService[]
+  statusLogs          WorkOrderStatusLog[]
+  photos              WorkOrderPhoto[]
+  damages             DamageRecord[]
+  appointment         Appointment?
+
+  @@unique([businessId, code])
+  @@index([businessId, status])
+  @@index([businessId, acceptedAt])
+  @@index([vehicleId])
+  @@index([customerId])
+  @@map("work_orders")
+}
+
+model WorkOrderService {
+  id                     String    @id @default(uuid()) @db.Uuid
+  businessId             String    @map("business_id") @db.Uuid
+  workOrderId            String    @map("work_order_id") @db.Uuid
+  serviceId              String    @map("service_id") @db.Uuid
+  nameSnapshot           String    @map("name_snapshot")
+  priceSnapshot          Decimal   @map("price_snapshot") @db.Decimal(10, 2)
+  estimatedMinutesSnapshot Int     @map("estimated_minutes_snapshot")
+  createdAt              DateTime  @default(now()) @map("created_at")
+  deletedAt              DateTime? @map("deleted_at")
+
+  workOrder              WorkOrder @relation(fields: [workOrderId], references: [id], onDelete: Cascade)
+  service                Service   @relation(fields: [serviceId], references: [id])
+
+  @@index([workOrderId])
+  @@index([businessId])
+  @@map("work_order_services")
+}
+
+model WorkOrderStatusLog {
+  id          String          @id @default(uuid()) @db.Uuid
+  businessId  String          @map("business_id") @db.Uuid
+  workOrderId String          @map("work_order_id") @db.Uuid
+  fromStatus  WorkOrderStatus? @map("from_status")
+  toStatus    WorkOrderStatus @map("to_status")
+  zoneId      String?         @map("zone_id") @db.Uuid
+  staffId     String?         @map("staff_id") @db.Uuid
+  userId      String          @map("user_id") @db.Uuid
+  createdAt   DateTime        @default(now()) @map("created_at")
+
+  workOrder   WorkOrder       @relation(fields: [workOrderId], references: [id], onDelete: Cascade)
+  zone        Zone?           @relation(fields: [zoneId], references: [id])
+  staff       Staff?          @relation(fields: [staffId], references: [id])
+  user        User            @relation(fields: [userId], references: [id])
+
+  @@index([workOrderId])
+  @@index([businessId])
+  @@map("work_order_status_logs")
+}
+
+model WorkOrderPhoto {
+  id          String         @id @default(uuid()) @db.Uuid
+  businessId  String         @map("business_id") @db.Uuid
+  workOrderId String         @map("work_order_id") @db.Uuid
+  category    PhotoCategory
+  fileUrl     String         @map("file_url")
+  takenAt     DateTime       @default(now()) @map("taken_at")
+  uploadedBy  String         @map("uploaded_by") @db.Uuid
+  createdAt   DateTime       @default(now()) @map("created_at")
+  deletedAt   DateTime?      @map("deleted_at")
+
+  workOrder   WorkOrder      @relation(fields: [workOrderId], references: [id], onDelete: Cascade)
+  uploader    User           @relation(fields: [uploadedBy], references: [id])
+  damages     DamageRecord[]
+
+  @@index([workOrderId])
+  @@index([businessId])
+  @@map("work_order_photos")
+}
+
+model DamageRecord {
+  id          String      @id @default(uuid()) @db.Uuid
+  businessId  String      @map("business_id") @db.Uuid
+  workOrderId String      @map("work_order_id") @db.Uuid
+  vehicleId   String      @map("vehicle_id") @db.Uuid
+  area        String
+  type        DamageType
+  note        String?
+  photoId     String?     @map("photo_id") @db.Uuid
+  createdAt   DateTime    @default(now()) @map("created_at")
+  deletedAt   DateTime?   @map("deleted_at")
+
+  workOrder   WorkOrder   @relation(fields: [workOrderId], references: [id], onDelete: Cascade)
+  vehicle     Vehicle     @relation(fields: [vehicleId], references: [id])
+  photo       WorkOrderPhoto? @relation(fields: [photoId], references: [id])
+
+  @@index([workOrderId])
+  @@index([vehicleId])
+  @@index([businessId])
+  @@map("damage_records")
+}
+
+model Appointment {
+  id                String            @id @default(uuid()) @db.Uuid
+  businessId        String            @map("business_id") @db.Uuid
+  customerId        String            @map("customer_id") @db.Uuid
+  vehicleId         String            @map("vehicle_id") @db.Uuid
+  date              DateTime          @db.Date
+  time              String
+  estimatedMinutes  Int               @map("estimated_minutes")
+  note              String?
+  status            AppointmentStatus @default(PENDING)
+  workOrderId       String?           @unique @map("work_order_id") @db.Uuid
+  createdAt         DateTime          @default(now()) @map("created_at")
+  updatedAt         DateTime          @updatedAt @map("updated_at")
+  deletedAt         DateTime?         @map("deleted_at")
+
+  business          Business          @relation(fields: [businessId], references: [id])
+  customer          Customer          @relation(fields: [customerId], references: [id])
+  vehicle           Vehicle           @relation(fields: [vehicleId], references: [id])
+  workOrder         WorkOrder?        @relation(fields: [workOrderId], references: [id])
+  services          AppointmentService[]
+
+  @@index([businessId, date])
+  @@index([customerId])
+  @@map("appointments")
+}
+
+model AppointmentService {
+  id             String      @id @default(uuid()) @db.Uuid
+  businessId     String      @map("business_id") @db.Uuid
+  appointmentId  String      @map("appointment_id") @db.Uuid
+  serviceId      String      @map("service_id") @db.Uuid
+  createdAt      DateTime    @default(now()) @map("created_at")
+  deletedAt      DateTime?   @map("deleted_at")
+
+  appointment    Appointment @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+  service        Service     @relation(fields: [serviceId], references: [id])
+
+  @@unique([appointmentId, serviceId])
+  @@index([businessId])
+  @@map("appointment_services")
+}
