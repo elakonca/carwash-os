@@ -15,6 +15,7 @@ import { appointmentsRouter } from "./modules/appointments/appointments.routes.j
 import { servicesRouter } from "./modules/services/services.routes.js";
 import { staffRouter } from "./modules/staff/staff.routes.js";
 import { portalRouter } from "./modules/portal/portal.routes.js";
+import { apiLimiter } from "./middleware/rate-limit.js";
 
 export function createApp() {
   const app = express();
@@ -27,9 +28,11 @@ export function createApp() {
   );
   app.use(cookieParser());
   app.use(express.json({ limit: "2mb" }));
+  app.set("trust proxy", 1);
   app.use("/uploads", express.static(path.resolve(env.UPLOAD_DIR)));
 
   app.get("/health", (_req, res) => res.json({ ok: true }));
+  app.use("/api", apiLimiter);
 
   app.use("/api/auth", authRouter);
   app.use("/api/customers", customersRouter);

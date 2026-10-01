@@ -7,6 +7,8 @@ import {
 import { canViewPrices } from "@carwash/shared";
 import { NotFoundError } from "../../lib/errors.js";
 import { routeId } from "../../lib/http.js";
+import { moneyString, sumDecimals } from "../../lib/money.js";
+import { pageArgs, pageMeta } from "../../lib/pagination.js";
 import { prisma } from "../../lib/prisma.js";
 import { currentUser, requireAuth } from "../../middleware/auth.js";
 import { asyncHandler, validateBody, validateQuery } from "../../middleware/error-handler.js";
@@ -19,11 +21,7 @@ customersRouter.get(
   validateQuery(paginationSchema),
   asyncHandler(async (req, res) => {
     const user = currentUser(req);
-    const { page, pageSize, q } = req.query as unknown as {
-      page: number;
-      pageSize: number;
-      q?: string;
-    };
+    const { q } = req.query as unknown as { q?: string };
     const where = {
       businessId: user.businessId,
       deletedAt: null,
@@ -37,17 +35,22 @@ customersRouter.get(
           }
         : {}),
     };
+    const query = req.query as unknown as {
+      page: number;
+      pageSize: number;
+      q?: string;
+      cursor?: string;
+    };
     const [items, total] = await Promise.all([
       prisma.customer.findMany({
         where,
         include: { vehicles: { where: { deletedAt: null } } },
-        orderBy: { createdAt: "desc" },
-        skip: (page - 1) * pageSize,
-        take: pageSize,
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+        ...pageArgs(query),
       }),
       prisma.customer.count({ where }),
     ]);
-    res.json({ items, total, page, pageSize });
+    res.json(pageMeta(items, total, query));
   }),
 );
 
@@ -146,7 +149,7 @@ customersRouter.get(
     if (!customer) throw new NotFoundError("Customer not found");
 
     const paidOrders = customer.workOrders.filter((wo) => wo.paymentStatus === "PAID");
-    const totalSpent = paidOrders.reduce((sum, wo) => sum + Number(wo.totalAmount), 0);
+    const totalSpent = moneyString(sumDecimals(paidOrders.map((wo) => wo.totalAmount)));
     const payload = {
       customer: {
         id: customer.id,

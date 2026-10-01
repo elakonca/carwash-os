@@ -3,9 +3,9 @@
   "private": true,
   "packageManager": "pnpm@9.15.4",
   "scripts": {
-    "dev": "npm --prefix apps/web run dev -- --host 127.0.0.1 --port 5173",
-    "dev:full": "turbo dev",
+    "dev": "turbo dev",
     "build": "turbo build",
+    "test": "pnpm --filter @carwash/api test",
     "lint": "turbo lint",
     "setup": "pnpm db:generate && pnpm db:push && pnpm db:seed",
     "db:generate": "pnpm --filter @carwash/api db:generate",

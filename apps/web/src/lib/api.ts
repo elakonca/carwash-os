@@ -25,17 +25,16 @@ async function refreshAccessToken(): Promise<string | null> {
   if (DEMO_MODE) return "demo-access";
   if (!refreshPromise) {
     refreshPromise = (async () => {
-      const refreshToken = localStorage.getItem("refreshToken");
       const res = await fetch("/api/auth/refresh", {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ refreshToken }),
+        body: "{}",
       });
       if (!res.ok) return null;
-      const data = (await res.json()) as { accessToken: string; refreshToken: string };
+      const data = (await res.json()) as { accessToken: string };
       localStorage.setItem("accessToken", data.accessToken);
-      localStorage.setItem("refreshToken", data.refreshToken);
+      localStorage.removeItem("refreshToken");
       return data.accessToken;
     })().finally(() => {
       refreshPromise = null;
@@ -72,7 +71,7 @@ export async function api<T>(path: string, options: RequestInit = {}, retry = tr
 
 export const authApi = {
   login: (email: string, password: string) =>
-    api<{ accessToken: string; refreshToken: string; user: AuthUser }>("/auth/login", {
+    api<{ accessToken: string; user: AuthUser }>("/auth/login", {
       method: "POST",
       body: JSON.stringify({ email, password }),
     }),

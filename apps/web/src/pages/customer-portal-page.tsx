@@ -2,7 +2,7 @@ import { FormEvent, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Check, Clock, MapPin, Sparkles } from "lucide-react";
 import { toast } from "sonner";
-import { CUSTOMER_JOURNEY_STEPS, normalizePlate } from "@carwash/shared";
+import { CUSTOMER_JOURNEY_STEPS, addMoney, normalizePlate } from "@carwash/shared";
 import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Badge, Card, Input, Label, Textarea } from "@/components/ui/forms";
@@ -11,7 +11,7 @@ import { formatDateTime, formatMoney } from "@/lib/utils";
 type CatalogService = {
   id: string;
   name: string;
-  price: number;
+  price: number | string;
   estimatedMinutes: number;
   zoneType: string;
 };
@@ -54,7 +54,7 @@ export function CustomerPortalPage() {
 
   const catalog = useQuery({
     queryKey: ["portal-catalog"],
-    queryFn: () => api<{ items: CatalogService[] }>("/portal/catalog"),
+    queryFn: () => api<{ items: CatalogService[] }>("/portal/catalog?page=1&pageSize=100"),
   });
 
   const track = useQuery({
@@ -67,7 +67,7 @@ export function CustomerPortalPage() {
   const selectedServices = (catalog.data?.items ?? []).filter((s) =>
     booking.serviceIds.includes(s.id),
   );
-  const liveTotal = selectedServices.reduce((sum, s) => sum + Number(s.price), 0);
+  const liveTotal = selectedServices.reduce((sum, service) => addMoney(sum, String(service.price)), "0.00");
   const liveMinutes = selectedServices.reduce((sum, s) => sum + s.estimatedMinutes, 0);
 
   const createAppointment = useMutation({

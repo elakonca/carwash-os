@@ -1,35 +1,38 @@
 import { Router } from "express";
-import { ACTIVE_WORK_ORDER_STATUSES, createStaffSchema, updateStaffSchema } from "@carwash/shared";
+import { ACTIVE_WORK_ORDER_STATUSES, createStaffSchema, paginationSchema, updateStaffSchema } from "@carwash/shared";
 import { NotFoundError } from "../../lib/errors.js";
 import { routeId } from "../../lib/http.js";
+import { pageArgs, pageMeta } from "../../lib/pagination.js";
 import { prisma } from "../../lib/prisma.js";
 import { currentUser, requireAuth, requireManager } from "../../middleware/auth.js";
-import { asyncHandler, validateBody } from "../../middleware/error-handler.js";
-import { serializeWorkOrder } from "../../lib/serialize.js";
+import { asyncHandler, validateBody, validateQuery } from "../../middleware/error-handler.js";
 
 export const staffRouter = Router();
 staffRouter.use(requireAuth);
 
 staffRouter.get(
   "/",
+  validateQuery(paginationSchema),
   asyncHandler(async (req, res) => {
     const user = currentUser(req);
-    const items = await prisma.staff.findMany({
-      where: { businessId: user.businessId, deletedAt: null },
-      include: {
-        workOrders: {
-          where: { deletedAt: null, status: { in: [...ACTIVE_WORK_ORDER_STATUSES] } },
-          include: { vehicle: true, currentZone: true },
+    const query = req.query as unknown as { page: number; pageSize: number; cursor?: string };
+    const where = { businessId: user.businessId, deletedAt: null };
+    const [items, total] = await Promise.all([
+      prisma.staff.findMany({
+        where,
+        include: {
+          workOrders: {
+            where: { deletedAt: null, status: { in: [...ACTIVE_WORK_ORDER_STATUSES] } },
+            select: { id: true, vehicle: { select: { plate: true } } },
+            take: 20,
+          },
         },
-      },
-      orderBy: { name: "asc" },
-    });
-    res.json({
-      items: items.map((member) => ({
-        ...member,
-        workOrders: member.workOrders.map((wo) => serializeWorkOrder(wo, user.role)),
-      })),
-    });
+        orderBy: [{ name: "asc" }, { id: "asc" }],
+        ...pageArgs(query),
+      }),
+      prisma.staff.count({ where }),
+    ]);
+    res.json(pageMeta(items, total, query));
   }),
 );
 

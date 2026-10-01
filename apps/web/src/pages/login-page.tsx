@@ -7,8 +7,8 @@ import { Input, Label } from "@/components/ui/forms";
 export function LoginPage() {
   const { user, login } = useAuth();
   const navigate = useNavigate();
-  const [email, setEmail] = useState("owner@aquashine.com");
-  const [password, setPassword] = useState("Owner123!");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
 
@@ -39,17 +39,12 @@ export function LoginPage() {
           <p className="mt-4 max-w-md text-white/70">
             Kabul, alan doluluğu, personel ve teslim — durum makinesi ile tutarlı.
           </p>
-          <p className="mt-4 inline-flex rounded-full bg-brand-500/20 px-3 py-1 text-xs text-brand-400">
-            Demo modu · bellek içi veri, Docker/Postgres yok
-          </p>
         </div>
         <p className="text-sm text-white/40">Faz 1 · ERP / CRM</p>
       </div>
       <form onSubmit={onSubmit} className="flex flex-col justify-center px-8 py-12 lg:px-24">
         <h2 className="text-2xl font-semibold">Giriş yap</h2>
-        <p className="mt-1 text-sm text-slate-500">
-          Veritabanı gerekmez. Demo: owner@aquashine.com / Owner123!
-        </p>
+        <p className="mt-1 text-sm text-slate-500">İşletme hesabınızla giriş yapın.</p>
         <div className="mt-8 space-y-4">
           <div className="space-y-1.5">
             <Label htmlFor="email">E-posta</Label>

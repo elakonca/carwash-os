@@ -16,7 +16,7 @@ import {
   type ZoneType,
 } from "@carwash/shared";
 
-export const DEMO_MODE = import.meta.env.VITE_DEMO_MODE !== "false";
+export const DEMO_MODE = import.meta.env.VITE_DEMO_MODE === "true";
 
 type Customer = {
   id: string;
@@ -126,9 +126,7 @@ const USERS: Record<string, { password: string; user: { id: string; name: string
 };
 
 let currentUserEmail =
-  typeof localStorage !== "undefined"
-    ? localStorage.getItem("demoUserEmail") || "owner@aquashine.com"
-    : "owner@aquashine.com";
+  typeof localStorage !== "undefined" ? localStorage.getItem("demoUserEmail") ?? "" : "";
 
 const customers: Customer[] = [
   { id: "c1", firstName: "Can", lastName: "Öztürk", phone: "05320001122", email: "can@example.com" },
@@ -301,11 +299,11 @@ const appointments: Appointment[] = [
 ];
 
 function currentUser() {
-  return USERS[currentUserEmail]?.user ?? USERS["owner@aquashine.com"].user;
+  return USERS[currentUserEmail]?.user ?? null;
 }
 
 function hydrateWorkOrder(wo: WorkOrder) {
-  const role = currentUser().role;
+  const role = currentUser()!.role;
   const vehicle = vehicleOf(wo.vehicleId);
   const customer = customerOf(wo.customerId);
   const payload = {
@@ -369,18 +367,27 @@ export async function handleDemoRequest<T>(path: string, options: RequestInit = 
     }
     return json({
       accessToken: "demo-access",
-      refreshToken: "demo-refresh",
       user: account.user,
     });
   }
   if (pathname === "/api/auth/me") {
-    return json({ user: currentUser(), business: BUSINESS });
+    const user = currentUser();
+    if (!user) return json({ error: { message: "Oturum gerekli" } }, 401);
+    return json({ user, business: BUSINESS });
   }
   if (pathname === "/api/auth/logout" && method === "POST") {
+    currentUserEmail = "";
+    if (typeof localStorage !== "undefined") localStorage.removeItem("demoUserEmail");
     return undefined as T;
   }
   if (pathname === "/api/auth/refresh" && method === "POST") {
-    return json({ accessToken: "demo-access", refreshToken: "demo-refresh", user: currentUser() });
+    const user = currentUser();
+    if (!user) return json({ error: { message: "Oturum gerekli" } }, 401);
+    return json({ accessToken: "demo-access", user });
+  }
+
+  if (!currentUser()) {
+    return json({ error: { message: "Oturum gerekli" } }, 401);
   }
 
   if (pathname === "/api/portal/catalog" && method === "GET") {
@@ -504,7 +511,7 @@ export async function handleDemoRequest<T>(path: string, options: RequestInit = 
       unpaidCount: workOrders.filter((wo) => wo.paymentStatus === "UNPAID" && wo.status !== "CANCELLED").length,
       zoneOccupancy: { occupied, total: zones.length, outOfService: 0 },
     };
-    if (canViewReports(currentUser().role)) {
+    if (canViewReports(currentUser()!.role)) {
       payload.todayRevenue = workOrders
         .filter((wo) => wo.paymentStatus === "PAID")
         .reduce((sum, wo) => sum + wo.totalAmount, 0);
@@ -541,7 +548,7 @@ export async function handleDemoRequest<T>(path: string, options: RequestInit = 
         vehicles: vehicles.filter((v) => v.customerId === customer.id),
         recentWorkOrders: related.map(hydrateWorkOrder),
         visitCount: related.length,
-        ...(canViewPrices(currentUser().role)
+        ...(canViewPrices(currentUser()!.role)
           ? { totalSpent: related.filter((wo) => wo.paymentStatus === "PAID").reduce((s, wo) => s + wo.totalAmount, 0) }
           : {}),
       });
@@ -586,7 +593,7 @@ export async function handleDemoRequest<T>(path: string, options: RequestInit = 
   }
 
   if (pathname === "/api/services" && method === "GET") {
-    const role = currentUser().role;
+    const role = currentUser()!.role;
     const items = canViewPrices(role) ? catalog : catalog.map(({ price: _p, ...s }) => s);
     return json({ items });
   }
@@ -594,7 +601,7 @@ export async function handleDemoRequest<T>(path: string, options: RequestInit = 
     const created: Service = {
       id: uid("s"),
       name: body.name,
-      price: Number(body.price),
+      price: typeof body.price === "number" ? body.price : Number.parseFloat(String(body.price)),
       estimatedMinutes: Number(body.estimatedMinutes),
       zoneType: body.zoneType,
       isActive: true,

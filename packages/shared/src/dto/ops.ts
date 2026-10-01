@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { APPOINTMENT_STATUSES, ZONE_STATUSES, ZONE_TYPES } from "../enums.js";
+import { paginationSchema } from "./common.js";
 
 export const createZoneSchema = z.object({
   name: z.string().trim().min(1).max(80),
@@ -30,3 +31,9 @@ export const updateAppointmentSchema = createAppointmentSchema
 
 export type CreateAppointmentInput = z.infer<typeof createAppointmentSchema>;
 export type UpdateAppointmentInput = z.infer<typeof updateAppointmentSchema>;
+
+export const listAppointmentsQuerySchema = paginationSchema.extend({
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+});
+
+export type ListAppointmentsQuery = z.infer<typeof listAppointmentsQuerySchema>;

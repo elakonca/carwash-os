@@ -60,7 +60,7 @@ export function DashboardPage() {
         vehiclesInProgress: number;
         readyCount: number;
         unpaidCount: number;
-        todayRevenue?: number;
+        todayRevenue?: number | string;
         zoneOccupancy: { occupied: number; total: number };
       }>("/dashboard/summary"),
     refetchInterval: 5000,

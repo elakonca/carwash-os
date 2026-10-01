@@ -5,6 +5,9 @@ import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Card, Input } from "@/components/ui/forms";
+import { Pager } from "@/components/ui/pager";
+import { useDebouncedValue } from "@/hooks/use-debounced-value";
+import { withQuery, type Page } from "@/lib/paging";
 
 type Customer = {
   id: string;
@@ -18,10 +21,13 @@ type Customer = {
 export function CustomersPage() {
   const queryClient = useQueryClient();
   const [q, setQ] = useState("");
+  const [page, setPage] = useState(1);
+  const debouncedQ = useDebouncedValue(q, 300);
   const [form, setForm] = useState({ firstName: "", lastName: "", phone: "", email: "" });
   const list = useQuery({
-    queryKey: ["customers", q],
-    queryFn: () => api<{ items: Customer[] }>(`/customers?q=${encodeURIComponent(q)}`),
+    queryKey: ["customers", debouncedQ, page],
+    queryFn: () =>
+      api<Page<Customer>>(withQuery("/customers", { q: debouncedQ, page, pageSize: 20 })),
   });
 
   const create = useMutation({
@@ -49,7 +55,15 @@ export function CustomersPage() {
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
           <h1 className="text-2xl font-semibold">Müşteriler</h1>
           <div className="flex items-center gap-2">
-            <Input placeholder="Ara" value={q} onChange={(e) => setQ(e.target.value)} className="w-56" />
+            <Input
+              placeholder="Ara"
+              value={q}
+              onChange={(e) => {
+                setQ(e.target.value);
+                setPage(1);
+              }}
+              className="w-56"
+            />
             <Link
               to="/accept"
               className="rounded-xl bg-brand-600 px-4 py-2 text-sm font-medium text-white"
@@ -75,6 +89,7 @@ export function CustomersPage() {
             </Link>
           ))}
         </div>
+        <Pager page={page} pageSize={20} total={list.data?.total ?? 0} onPage={setPage} />
       </div>
       <Card className="h-fit space-y-3 p-5">
         <h2 className="font-semibold">Yeni müşteri</h2>

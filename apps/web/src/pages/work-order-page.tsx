@@ -64,11 +64,14 @@ export function WorkOrderPage() {
   });
   const zones = useQuery({
     queryKey: ["zones"],
-    queryFn: () => api<{ items: { id: string; name: string; type: string; status: string }[] }>("/zones"),
+    queryFn: () =>
+      api<{ items: { id: string; name: string; type: string; status: string }[] }>(
+        "/zones?page=1&pageSize=100",
+      ),
   });
   const staff = useQuery({
     queryKey: ["staff"],
-    queryFn: () => api<{ items: { id: string; name: string }[] }>("/staff"),
+    queryFn: () => api<{ items: { id: string; name: string }[] }>("/staff?page=1&pageSize=100"),
   });
 
   const next = useMemo(

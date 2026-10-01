@@ -6,6 +6,8 @@ import { api } from "@/lib/api";
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
 import { Card, Input } from "@/components/ui/forms";
+import { Pager } from "@/components/ui/pager";
+import { withQuery, type Page } from "@/lib/paging";
 import { formatMoney } from "@/lib/utils";
 
 type Service = {
@@ -13,7 +15,7 @@ type Service = {
   name: string;
   estimatedMinutes: number;
   zoneType: (typeof ZONE_TYPES)[number];
-  price?: number;
+  price?: number | string;
   isActive: boolean;
 };
 
@@ -28,9 +30,10 @@ export function ServicesPage() {
     zoneType: "EXTERIOR" as (typeof ZONE_TYPES)[number],
   });
 
+  const [page, setPage] = useState(1);
   const list = useQuery({
-    queryKey: ["services"],
-    queryFn: () => api<{ items: Service[] }>("/services"),
+    queryKey: ["services", page],
+    queryFn: () => api<Page<Service>>(withQuery("/services", { page, pageSize: 20 })),
   });
 
   const create = useMutation({
@@ -39,7 +42,7 @@ export function ServicesPage() {
         method: "POST",
         body: JSON.stringify({
           ...form,
-          price: Number(form.price),
+          price: form.price,
           estimatedMinutes: Number(form.estimatedMinutes),
         }),
       }),
@@ -74,6 +77,7 @@ export function ServicesPage() {
             </Card>
           ))}
         </div>
+        <Pager page={page} pageSize={20} total={list.data?.total ?? 0} onPage={setPage} />
       </div>
       {canManage ? (
         <Card className="h-fit space-y-3 p-5">

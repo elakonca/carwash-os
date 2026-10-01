@@ -1,9 +1,21 @@
 import { Router } from "express";
+import { Prisma } from "@prisma/client";
 import { ACTIVE_WORK_ORDER_STATUSES, WORK_ORDER_STATUSES, canViewReports } from "@carwash/shared";
+import { moneyString } from "../../lib/money.js";
 import { prisma } from "../../lib/prisma.js";
-import { endOfUtcDay, serializeWorkOrder, startOfUtcDay, workOrderInclude } from "../../lib/serialize.js";
+import { endOfUtcDay, startOfUtcDay } from "../../lib/serialize.js";
 import { currentUser, requireAuth } from "../../middleware/auth.js";
 import { asyncHandler } from "../../middleware/error-handler.js";
+
+const boardCardSelect = {
+  id: true,
+  code: true,
+  status: true,
+  vehicle: { select: { plate: true, brand: true, model: true } },
+  customer: { select: { firstName: true, lastName: true } },
+  currentZone: { select: { name: true } },
+  assignedStaff: { select: { name: true } },
+} satisfies Prisma.WorkOrderSelect;
 
 export const dashboardRouter = Router();
 dashboardRouter.use(requireAuth);
@@ -19,25 +31,35 @@ dashboardRouter.get(
           deletedAt: null,
           status: { in: [...ACTIVE_WORK_ORDER_STATUSES] },
         },
-        include: workOrderInclude,
+        select: boardCardSelect,
         orderBy: { acceptedAt: "asc" },
       }),
       prisma.zone.findMany({
         where: { businessId: user.businessId, deletedAt: null },
-        include: {
-          currentWorkOrder: { include: { vehicle: true, assignedStaff: true } },
+        select: {
+          id: true,
+          name: true,
+          type: true,
+          status: true,
+          currentWorkOrder: { select: { vehicle: { select: { plate: true } } } },
         },
         orderBy: [{ type: "asc" }, { name: "asc" }],
       }),
       prisma.staff.findMany({
         where: { businessId: user.businessId, deletedAt: null, isActive: true },
-        include: {
+        select: {
+          id: true,
+          name: true,
+          specialty: true,
           workOrders: {
             where: {
               deletedAt: null,
               status: { in: [...ACTIVE_WORK_ORDER_STATUSES] },
             },
-            include: { vehicle: true, currentZone: true },
+            select: {
+              id: true,
+              vehicle: { select: { plate: true } },
+            },
           },
         },
         orderBy: { name: "asc" },
@@ -48,9 +70,7 @@ dashboardRouter.get(
       WORK_ORDER_STATUSES.filter((status) => status !== "DELIVERED" && status !== "CANCELLED").map(
         (status) => [
           status,
-          workOrders
-            .filter((wo) => wo.status === status)
-            .map((wo) => serializeWorkOrder(wo, user.role)),
+          workOrders.filter((wo) => wo.status === status),
         ],
       ),
     );
@@ -62,7 +82,7 @@ dashboardRouter.get(
         id: member.id,
         name: member.name,
         specialty: member.specialty,
-        activeWorkOrders: member.workOrders.map((wo) => serializeWorkOrder(wo, user.role)),
+        activeWorkOrders: member.workOrders,
       })),
     });
   }),
@@ -75,7 +95,7 @@ dashboardRouter.get(
     const todayStart = startOfUtcDay();
     const todayEnd = endOfUtcDay();
 
-    const [inProgress, readyCount, unpaidCount, zones, todayPaid] = await Promise.all([
+    const [inProgress, readyCount, unpaidCount, zones, todayRevenue] = await Promise.all([
       prisma.workOrder.count({
         where: {
           businessId: user.businessId,
@@ -98,14 +118,14 @@ dashboardRouter.get(
         where: { businessId: user.businessId, deletedAt: null },
         select: { status: true },
       }),
-      prisma.workOrder.findMany({
+      prisma.workOrder.aggregate({
         where: {
           businessId: user.businessId,
           deletedAt: null,
           paymentStatus: "PAID",
           acceptedAt: { gte: todayStart, lt: todayEnd },
         },
-        select: { totalAmount: true },
+        _sum: { totalAmount: true },
       }),
     ]);
 
@@ -122,7 +142,7 @@ dashboardRouter.get(
     };
 
     if (canViewReports(user.role)) {
-      payload.todayRevenue = todayPaid.reduce((sum, wo) => sum + Number(wo.totalAmount), 0);
+      payload.todayRevenue = moneyString(todayRevenue._sum.totalAmount ?? new Prisma.Decimal(0));
     }
 
     res.json(payload);

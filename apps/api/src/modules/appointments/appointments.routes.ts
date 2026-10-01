@@ -1,10 +1,11 @@
 import { Router } from "express";
-import { createAppointmentSchema, updateAppointmentSchema } from "@carwash/shared";
+import { createAppointmentSchema, listAppointmentsQuerySchema, updateAppointmentSchema } from "@carwash/shared";
 import { NotFoundError, UnprocessableEntityError } from "../../lib/errors.js";
 import { routeId } from "../../lib/http.js";
+import { pageArgs, pageMeta } from "../../lib/pagination.js";
 import { prisma } from "../../lib/prisma.js";
 import { currentUser, requireAuth } from "../../middleware/auth.js";
-import { asyncHandler, validateBody } from "../../middleware/error-handler.js";
+import { asyncHandler, validateBody, validateQuery } from "../../middleware/error-handler.js";
 import { createWorkOrder } from "../work-orders/work-orders.service.js";
 
 export const appointmentsRouter = Router();
@@ -19,19 +20,30 @@ const include = {
 
 appointmentsRouter.get(
   "/",
+  validateQuery(listAppointmentsQuerySchema),
   asyncHandler(async (req, res) => {
     const user = currentUser(req);
-    const date = typeof req.query.date === "string" ? req.query.date : undefined;
-    const items = await prisma.appointment.findMany({
-      where: {
-        businessId: user.businessId,
-        deletedAt: null,
-        ...(date ? { date: new Date(`${date}T00:00:00.000Z`) } : {}),
-      },
-      include,
-      orderBy: [{ date: "asc" }, { time: "asc" }],
-    });
-    res.json({ items });
+    const query = req.query as unknown as {
+      page: number;
+      pageSize: number;
+      cursor?: string;
+      date?: string;
+    };
+    const where = {
+      businessId: user.businessId,
+      deletedAt: null,
+      ...(query.date ? { date: new Date(`${query.date}T00:00:00.000Z`) } : {}),
+    };
+    const [items, total] = await Promise.all([
+      prisma.appointment.findMany({
+        where,
+        include,
+        orderBy: [{ date: "asc" }, { time: "asc" }, { id: "asc" }],
+        ...pageArgs(query),
+      }),
+      prisma.appointment.count({ where }),
+    ]);
+    res.json(pageMeta(items, total, query));
   }),
 );
 

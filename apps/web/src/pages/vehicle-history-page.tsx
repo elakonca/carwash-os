@@ -1,18 +1,22 @@
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useParams } from "react-router-dom";
 import { api } from "@/lib/api";
 import { Card } from "@/components/ui/forms";
+import { Pager } from "@/components/ui/pager";
+import { withQuery, type Page } from "@/lib/paging";
 import { WORK_ORDER_STATUS_LABELS, type WorkOrderStatus } from "@carwash/shared";
 
 export function VehicleHistoryPage() {
   const { id } = useParams();
+  const [page, setPage] = useState(1);
   const history = useQuery({
-    queryKey: ["vehicle-history", id],
+    queryKey: ["vehicle-history", id, page],
     queryFn: () =>
       api<{
         vehicle: { plate: string; brand?: string; model?: string; customer: { firstName: string; lastName: string } };
         workOrders: { id: string; code: string; status: WorkOrderStatus; acceptedAt: string }[];
-      }>(`/vehicles/${id}/history`),
+      } & Page<{ id: string }>>(withQuery(`/vehicles/${id}/history`, { page, pageSize: 20 })),
   });
 
   if (!history.data) return <p>Yükleniyor...</p>;
@@ -34,6 +38,7 @@ export function VehicleHistoryPage() {
           </Card>
         </Link>
       ))}
+      <Pager page={page} pageSize={20} total={history.data?.total ?? 0} onPage={setPage} />
     </div>
   );
 }

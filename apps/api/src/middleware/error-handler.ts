@@ -1,4 +1,5 @@
 import type { NextFunction, Request, Response } from "express";
+import multer from "multer";
 import { ZodError, type ZodSchema } from "zod";
 import { HttpError } from "../lib/errors.js";
 
@@ -37,6 +38,12 @@ export function errorHandler(
         message: "Invalid request",
         details: err.flatten(),
       },
+    });
+  }
+
+  if (err instanceof multer.MulterError) {
+    return res.status(422).json({
+      error: { code: "UPLOAD_REJECTED", message: "Upload rejected" },
     });
   }
 

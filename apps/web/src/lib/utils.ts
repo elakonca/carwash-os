@@ -5,13 +5,13 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-export function formatMoney(value: number | string | undefined) {
-  if (value === undefined || value === null) return "—";
-  return new Intl.NumberFormat("tr-TR", {
-    style: "currency",
-    currency: "TRY",
-    maximumFractionDigits: 0,
-  }).format(Number(value));
+export function formatMoney(value: number | string | null | undefined) {
+  if (value === undefined || value === null || value === "") return "—";
+  const raw = typeof value === "number" ? value.toFixed(2) : String(value);
+  const negative = raw.startsWith("-");
+  const [whole, frac = "00"] = raw.replace("-", "").split(".");
+  const wholeText = new Intl.NumberFormat("tr-TR").format(BigInt(whole || "0"));
+  return `${negative ? "-" : ""}${wholeText},${(frac + "00").slice(0, 2)} ₺`;
 }
 
 export function formatDateTime(value: string | Date | null | undefined) {
