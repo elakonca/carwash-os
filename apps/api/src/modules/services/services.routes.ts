@@ -1,26 +1,34 @@
 import { Router } from "express";
-import { createServiceSchema, updateServiceSchema, canViewPrices } from "@carwash/shared";
+import { createServiceSchema, paginationSchema, updateServiceSchema, canViewPrices } from "@carwash/shared";
 import { NotFoundError } from "../../lib/errors.js";
 import { routeId } from "../../lib/http.js";
+import { pageArgs, pageMeta } from "../../lib/pagination.js";
 import { prisma } from "../../lib/prisma.js";
 import { currentUser, requireAuth, requireManager } from "../../middleware/auth.js";
-import { asyncHandler, validateBody } from "../../middleware/error-handler.js";
+import { asyncHandler, validateBody, validateQuery } from "../../middleware/error-handler.js";
 
 export const servicesRouter = Router();
 servicesRouter.use(requireAuth);
 
 servicesRouter.get(
   "/",
+  validateQuery(paginationSchema),
   asyncHandler(async (req, res) => {
     const user = currentUser(req);
-    const items = await prisma.service.findMany({
-      where: { businessId: user.businessId, deletedAt: null },
-      orderBy: { name: "asc" },
-    });
+    const query = req.query as unknown as { page: number; pageSize: number; cursor?: string };
+    const where = { businessId: user.businessId, deletedAt: null };
+    const [items, total] = await Promise.all([
+      prisma.service.findMany({
+        where,
+        orderBy: [{ name: "asc" }, { id: "asc" }],
+        ...pageArgs(query),
+      }),
+      prisma.service.count({ where }),
+    ]);
     const payload = canViewPrices(user.role)
       ? items
       : items.map(({ price: _price, ...rest }) => rest);
-    res.json({ items: payload });
+    res.json(pageMeta(payload, total, query));
   }),
 );
 

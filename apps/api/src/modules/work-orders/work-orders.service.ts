@@ -1,4 +1,4 @@
-import type { Prisma } from "@prisma/client";
+import { Prisma } from "@prisma/client";
 import {
   ACTIVE_WORK_ORDER_STATUSES,
   DOMAIN_EVENTS,
@@ -22,6 +22,8 @@ import {
   NotFoundError,
   UnprocessableEntityError,
 } from "../../lib/errors.js";
+import { sumDecimals } from "../../lib/money.js";
+import { pageArgs, pageMeta } from "../../lib/pagination.js";
 import { prisma } from "../../lib/prisma.js";
 import { endOfUtcDay, serializeWorkOrder, startOfUtcDay, workOrderInclude } from "../../lib/serialize.js";
 import { syncWorkOrderZone } from "../../lib/zone-lock.js";
@@ -155,7 +157,7 @@ export async function createWorkOrder(user: RequestUser, input: CreateWorkOrderI
       throw new UnprocessableEntityError("One or more services are invalid");
     }
 
-    const totalAmount = services.reduce((sum, service) => sum + Number(service.price), 0);
+    const totalAmount = sumDecimals(services.map((service) => service.price));
     const estimatedMinutes = services.reduce((sum, service) => sum + service.estimatedMinutes, 0);
 
     const business = await tx.business.update({
@@ -254,13 +256,21 @@ export async function listWorkOrders(user: RequestUser, query: ListWorkOrdersQue
     where.vehicle = { plate: { contains: normalizePlate(query.plate), mode: "insensitive" } };
   }
 
-  const items = await prisma.workOrder.findMany({
-    where,
-    include: workOrderInclude,
-    orderBy: { acceptedAt: "desc" },
-  });
+  const [items, total] = await Promise.all([
+    prisma.workOrder.findMany({
+      where,
+      include: workOrderInclude,
+      orderBy: [{ acceptedAt: "desc" }, { id: "desc" }],
+      ...pageArgs(query),
+    }),
+    prisma.workOrder.count({ where }),
+  ]);
 
-  return items.map((item) => serializeWorkOrder(item, user.role));
+  return pageMeta(
+    items.map((item) => serializeWorkOrder(item, user.role)),
+    total,
+    query,
+  );
 }
 
 export async function getWorkOrder(user: RequestUser, id: string) {
@@ -416,12 +426,9 @@ export async function recordPayment(user: RequestUser, id: string, input: Paymen
   }
 
   const workOrder = await getTenantWorkOrder(user.businessId, id);
-  const snapshotTotal = workOrder.services.reduce(
-    (sum, service) => sum + Number(service.priceSnapshot),
-    0,
-  );
+  const snapshotTotal = sumDecimals(workOrder.services.map((service) => service.priceSnapshot));
   const totalAmount =
-    input.amountOverride !== undefined ? input.amountOverride : snapshotTotal;
+    input.amountOverride !== undefined ? new Prisma.Decimal(input.amountOverride) : snapshotTotal;
 
   const updated = await prisma.workOrder.update({
     where: { id: workOrder.id },

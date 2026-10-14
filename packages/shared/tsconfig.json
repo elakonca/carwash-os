@@ -5,9 +5,9 @@
     "rootDir": "src",
     "module": "ESNext",
     "moduleResolution": "bundler",
-    "noEmit": true,
-    "declaration": false,
-    "declarationMap": false
+    "noEmit": false,
+    "declaration": true,
+    "declarationMap": true
   },
   "include": ["src"]
 }

@@ -16,7 +16,7 @@ export function CustomerDetailPage() {
         vehicles: { id: string; plate: string; brand?: string; model?: string }[];
         recentWorkOrders: { id: string; code: string; status: string; totalAmount?: number }[];
         visitCount: number;
-        totalSpent?: number;
+        totalSpent?: number | string;
       }>(`/customers/${id}/summary`),
   });
 

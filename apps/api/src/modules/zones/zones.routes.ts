@@ -1,32 +1,38 @@
 import { Router } from "express";
-import { createZoneSchema, updateZoneSchema } from "@carwash/shared";
+import { createZoneSchema, paginationSchema, updateZoneSchema } from "@carwash/shared";
 import { NotFoundError, UnprocessableEntityError } from "../../lib/errors.js";
 import { routeId } from "../../lib/http.js";
+import { pageArgs, pageMeta } from "../../lib/pagination.js";
 import { prisma } from "../../lib/prisma.js";
 import { currentUser, requireAuth, requireManager } from "../../middleware/auth.js";
-import { asyncHandler, validateBody } from "../../middleware/error-handler.js";
+import { asyncHandler, validateBody, validateQuery } from "../../middleware/error-handler.js";
 
 export const zonesRouter = Router();
 zonesRouter.use(requireAuth);
 
 zonesRouter.get(
   "/",
+  validateQuery(paginationSchema),
   asyncHandler(async (req, res) => {
     const user = currentUser(req);
-    const zones = await prisma.zone.findMany({
-      where: { businessId: user.businessId, deletedAt: null },
-      include: {
-        currentWorkOrder: {
-          include: {
-            vehicle: true,
-            customer: true,
-            assignedStaff: true,
-          },
+    const query = req.query as unknown as { page: number; pageSize: number; cursor?: string };
+    const where = { businessId: user.businessId, deletedAt: null };
+    const [zones, total] = await Promise.all([
+      prisma.zone.findMany({
+        where,
+        select: {
+          id: true,
+          name: true,
+          type: true,
+          status: true,
+          currentWorkOrder: { select: { vehicle: { select: { plate: true } } } },
         },
-      },
-      orderBy: [{ type: "asc" }, { name: "asc" }],
-    });
-    res.json({ items: zones });
+        orderBy: [{ type: "asc" }, { name: "asc" }, { id: "asc" }],
+        ...pageArgs(query),
+      }),
+      prisma.zone.count({ where }),
+    ]);
+    res.json(pageMeta(zones, total, query));
   }),
 );
 

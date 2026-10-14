@@ -1,0 +1,45 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main, master]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: carwash
+          POSTGRES_PASSWORD: carwash
+          POSTGRES_DB: carwash_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U carwash -d carwash_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://carwash:carwash@localhost:5432/carwash_test
+      JWT_ACCESS_SECRET: test-access-secret-min-32-chars
+      JWT_REFRESH_SECRET: test-refresh-secret-min-32-chars
+      WEB_ORIGIN: http://localhost:5173
+      NODE_ENV: test
+      COOKIE_SECURE: "false"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @carwash/api exec prisma generate
+      - run: pnpm --filter @carwash/api exec prisma migrate deploy
+      - run: pnpm build
+      - run: pnpm test

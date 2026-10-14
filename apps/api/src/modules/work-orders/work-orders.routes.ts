@@ -1,7 +1,5 @@
 import { Router } from "express";
 import multer from "multer";
-import path from "node:path";
-import { randomUUID } from "node:crypto";
 import {
   assignStaffSchema,
   cancelWorkOrderSchema,
@@ -15,31 +13,18 @@ import {
 import { env } from "../../config/env.js";
 import { UnprocessableEntityError } from "../../lib/errors.js";
 import { routeId } from "../../lib/http.js";
+import { persistVerifiedImage } from "../../lib/file-signature.js";
 import { currentUser, requireAuth } from "../../middleware/auth.js";
 import { asyncHandler, validateBody, validateQuery } from "../../middleware/error-handler.js";
+import { uploadLimiter } from "../../middleware/rate-limit.js";
 import * as service from "./work-orders.service.js";
 
 export const workOrdersRouter = Router();
 workOrdersRouter.use(requireAuth);
 
-const storage = multer.diskStorage({
-  destination: env.UPLOAD_DIR,
-  filename: (_req, file, cb) => {
-    const ext = path.extname(file.originalname) || ".jpg";
-    cb(null, `${randomUUID()}${ext}`);
-  },
-});
-
 const upload = multer({
-  storage,
+  storage: multer.memoryStorage(),
   limits: { fileSize: 8 * 1024 * 1024 },
-  fileFilter: (_req, file, cb) => {
-    if (!file.mimetype.startsWith("image/")) {
-      cb(new UnprocessableEntityError("Only image uploads are allowed"));
-      return;
-    }
-    cb(null, true);
-  },
 });
 
 workOrdersRouter.post(
@@ -55,8 +40,8 @@ workOrdersRouter.get(
   "/",
   validateQuery(listWorkOrdersQuerySchema),
   asyncHandler(async (req, res) => {
-    const items = await service.listWorkOrders(currentUser(req), req.query as never);
-    res.json({ items });
+    const page = await service.listWorkOrders(currentUser(req), req.query as never);
+    res.json(page);
   }),
 );
 
@@ -96,6 +81,7 @@ workOrdersRouter.post(
 
 workOrdersRouter.post(
   "/:id/photos",
+  uploadLimiter,
   upload.single("file"),
   asyncHandler(async (req, res) => {
     if (!req.file) throw new UnprocessableEntityError("file is required");
@@ -103,11 +89,12 @@ workOrdersRouter.post(
     if (!PHOTO_CATEGORIES.includes(category as (typeof PHOTO_CATEGORIES)[number])) {
       throw new UnprocessableEntityError("Invalid photo category");
     }
+    const stored = await persistVerifiedImage(req.file, env.UPLOAD_DIR);
     const photo = await service.addPhoto({
       user: currentUser(req),
       workOrderId: routeId(req),
       category: category as (typeof PHOTO_CATEGORIES)[number],
-      fileUrl: `/uploads/${req.file.filename}`,
+      fileUrl: `/uploads/${stored.filename}`,
     });
     res.status(201).json(photo);
   }),

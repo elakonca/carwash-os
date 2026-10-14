@@ -1,6 +1,8 @@
 import { z } from "zod";
 import { normalizePlate } from "../plate.js";
 import { ZONE_TYPES } from "../enums.js";
+import { moneySchema } from "../money.js";
+import { paginationSchema } from "./common.js";
 
 export const createCustomerSchema = z.object({
   firstName: z.string().trim().min(1).max(80),
@@ -30,9 +32,16 @@ export const updateVehicleSchema = createVehicleSchema.partial();
 export type CreateVehicleInput = z.infer<typeof createVehicleSchema>;
 export type UpdateVehicleInput = z.infer<typeof updateVehicleSchema>;
 
+export const listVehiclesQuerySchema = paginationSchema.extend({
+  plate: z.string().optional(),
+  customerId: z.string().uuid().optional(),
+});
+
+export type ListVehiclesQuery = z.infer<typeof listVehiclesQuerySchema>;
+
 export const createServiceSchema = z.object({
   name: z.string().trim().min(1).max(120),
-  price: z.coerce.number().min(0),
+  price: moneySchema,
   estimatedMinutes: z.coerce.number().int().min(1).max(24 * 60),
   zoneType: z.enum(ZONE_TYPES),
   isActive: z.boolean().optional().default(true),

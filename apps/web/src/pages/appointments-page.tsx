@@ -6,6 +6,8 @@ import { APPOINTMENT_STATUS_LABELS } from "@carwash/shared";
 import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Badge, Card, Input, Textarea } from "@/components/ui/forms";
+import { Pager } from "@/components/ui/pager";
+import { withQuery, type Page } from "@/lib/paging";
 
 type Appointment = {
   id: string;
@@ -33,22 +35,29 @@ export function AppointmentsPage() {
     serviceIds: [] as string[],
   });
 
+  const [page, setPage] = useState(1);
   const list = useQuery({
-    queryKey: ["appointments"],
-    queryFn: () => api<{ items: Appointment[] }>("/appointments"),
+    queryKey: ["appointments", page],
+    queryFn: () => api<Page<Appointment>>(withQuery("/appointments", { page, pageSize: 20 })),
   });
   const customers = useQuery({
     queryKey: ["customers-min"],
-    queryFn: () => api<{ items: { id: string; firstName: string; lastName: string }[] }>("/customers?pageSize=100"),
+    queryFn: () =>
+      api<Page<{ id: string; firstName: string; lastName: string }>>(
+        withQuery("/customers", { page: 1, pageSize: 100 }),
+      ),
   });
   const vehicles = useQuery({
     queryKey: ["vehicles-by-customer", form.customerId],
     enabled: Boolean(form.customerId),
-    queryFn: () => api<{ items: { id: string; plate: string }[] }>(`/vehicles?customerId=${form.customerId}`),
+    queryFn: () =>
+      api<Page<{ id: string; plate: string }>>(
+        withQuery("/vehicles", { customerId: form.customerId, page: 1, pageSize: 100 }),
+      ),
   });
   const services = useQuery({
     queryKey: ["services"],
-    queryFn: () => api<{ items: { id: string; name: string }[] }>("/services"),
+    queryFn: () => api<Page<{ id: string; name: string }>>(withQuery("/services", { page: 1, pageSize: 100 })),
   });
 
   const create = useMutation({
@@ -110,6 +119,7 @@ export function AppointmentsPage() {
             </Card>
           ))}
         </div>
+        <Pager page={page} pageSize={20} total={list.data?.total ?? 0} onPage={setPage} />
       </div>
       <Card className="h-fit space-y-3 p-5">
         <h2 className="font-semibold">Yeni randevu</h2>

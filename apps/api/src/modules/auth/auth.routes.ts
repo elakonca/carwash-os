@@ -12,27 +12,33 @@ import { verifyPassword } from "../../lib/password.js";
 import { prisma } from "../../lib/prisma.js";
 import { currentUser, requireAuth } from "../../middleware/auth.js";
 import { asyncHandler, validateBody } from "../../middleware/error-handler.js";
+import { loginLimiter } from "../../middleware/rate-limit.js";
 
 export const authRouter = Router();
 
 const REFRESH_COOKIE = "refresh_token";
 
-function setRefreshCookie(res: import("express").Response, token: string, expiresAt: Date) {
-  res.cookie(REFRESH_COOKIE, token, {
+function refreshCookieOptions(expires?: Date) {
+  return {
     httpOnly: true,
-    sameSite: "lax",
-    secure: false,
+    sameSite: "lax" as const,
+    secure: env.COOKIE_SECURE,
     path: "/api/auth",
-    expires: expiresAt,
-  });
+    ...(expires ? { expires } : {}),
+  };
+}
+
+function setRefreshCookie(res: import("express").Response, token: string, expiresAt: Date) {
+  res.cookie(REFRESH_COOKIE, token, refreshCookieOptions(expiresAt));
 }
 
 function clearRefreshCookie(res: import("express").Response) {
-  res.clearCookie(REFRESH_COOKIE, { path: "/api/auth" });
+  res.clearCookie(REFRESH_COOKIE, refreshCookieOptions());
 }
 
 authRouter.post(
   "/login",
+  loginLimiter,
   validateBody(loginSchema),
   asyncHandler(async (req, res) => {
     const { email, password } = req.body as { email: string; password: string };
@@ -65,7 +71,6 @@ authRouter.post(
     setRefreshCookie(res, refreshToken, expiresAt);
     res.json({
       accessToken,
-      refreshToken,
       expiresIn: env.JWT_ACCESS_EXPIRES,
       user: {
         id: user.id,
@@ -80,11 +85,10 @@ authRouter.post(
 
 authRouter.post(
   "/refresh",
+  loginLimiter,
   validateBody(refreshSchema),
   asyncHandler(async (req, res) => {
-    const bodyToken = (req.body as { refreshToken?: string }).refreshToken;
-    const cookieToken = req.cookies?.[REFRESH_COOKIE] as string | undefined;
-    const refreshToken = bodyToken || cookieToken;
+    const refreshToken = req.cookies?.[REFRESH_COOKIE] as string | undefined;
     if (!refreshToken) throw new UnauthorizedError("Missing refresh token");
 
     const stored = await prisma.refreshToken.findFirst({
@@ -125,7 +129,6 @@ authRouter.post(
     setRefreshCookie(res, nextRefresh, expiresAt);
     res.json({
       accessToken,
-      refreshToken: nextRefresh,
       expiresIn: env.JWT_ACCESS_EXPIRES,
       user: {
         id: stored.user.id,
@@ -141,9 +144,7 @@ authRouter.post(
 authRouter.post(
   "/logout",
   asyncHandler(async (req, res) => {
-    const bodyToken = (req.body as { refreshToken?: string } | undefined)?.refreshToken;
-    const cookieToken = req.cookies?.[REFRESH_COOKIE] as string | undefined;
-    const refreshToken = bodyToken || cookieToken;
+    const refreshToken = req.cookies?.[REFRESH_COOKIE] as string | undefined;
     if (refreshToken) {
       await prisma.refreshToken.updateMany({
         where: { tokenHash: hashToken(refreshToken), revokedAt: null },

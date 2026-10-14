@@ -6,6 +6,8 @@ import { api } from "@/lib/api";
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
 import { Card, Input } from "@/components/ui/forms";
+import { Pager } from "@/components/ui/pager";
+import { withQuery, type Page } from "@/lib/paging";
 
 type Staff = {
   id: string;
@@ -21,9 +23,10 @@ export function StaffPage() {
   const queryClient = useQueryClient();
   const [form, setForm] = useState({ name: "", phone: "", specialty: "" });
 
+  const [page, setPage] = useState(1);
   const list = useQuery({
-    queryKey: ["staff"],
-    queryFn: () => api<{ items: Staff[] }>("/staff"),
+    queryKey: ["staff", page],
+    queryFn: () => api<Page<Staff>>(withQuery("/staff", { page, pageSize: 20 })),
   });
 
   const create = useMutation({
@@ -63,6 +66,7 @@ export function StaffPage() {
             </Card>
           ))}
         </div>
+        <Pager page={page} pageSize={20} total={list.data?.total ?? 0} onPage={setPage} />
       </div>
       {canManage ? (
         <Card className="h-fit space-y-3 p-5">

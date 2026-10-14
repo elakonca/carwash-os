@@ -1,5 +1,5 @@
 services:
-  db:
+  postgres:
     image: postgres:16-alpine
     restart: unless-stopped
     environment:
@@ -10,6 +10,60 @@ services:
       - "5432:5432"
     volumes:
       - carwash_pg:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U carwash -d carwash"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build:
+      context: .
+      target: api
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://carwash:carwash@postgres:5432/carwash
+      REDIS_URL: redis://redis:6379
+      JWT_ACCESS_SECRET: change-me-access-secret-min-32-chars
+      JWT_REFRESH_SECRET: change-me-refresh-secret-min-32-chars
+      JWT_ACCESS_EXPIRES: 15m
+      JWT_REFRESH_EXPIRES: 7d
+      API_PORT: 3001
+      WEB_ORIGIN: http://localhost:8080
+      UPLOAD_DIR: /app/uploads
+      NODE_ENV: production
+      COOKIE_SECURE: "false"
+    ports:
+      - "3001:3001"
+    volumes:
+      - carwash_uploads:/app/uploads
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  web:
+    build:
+      context: .
+      target: web
+    restart: unless-stopped
+    ports:
+      - "8080:80"
+    depends_on:
+      - api
 
 volumes:
   carwash_pg:
+  carwash_uploads:

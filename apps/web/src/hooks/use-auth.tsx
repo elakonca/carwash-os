@@ -1,7 +1,6 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { canViewPrices, canViewReports, type UserRole } from "@carwash/shared";
 import { authApi, type AuthUser } from "@/lib/api";
-import { DEMO_MODE } from "@/lib/demo-api";
 
 type AuthState = {
   user: AuthUser | null;
@@ -21,24 +20,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const token = localStorage.getItem("accessToken");
-    if (!token && DEMO_MODE) {
-      authApi
-        .login("owner@aquashine.com", "Owner123!")
-        .then(async (data) => {
-          localStorage.setItem("accessToken", data.accessToken);
-          localStorage.setItem("refreshToken", data.refreshToken);
-          setUser(data.user);
-          const me = await authApi.me();
-          setBusinessName(me.business?.name ?? null);
-        })
-        .finally(() => setLoading(false));
-      return;
-    }
-    if (!token) {
-      setLoading(false);
-      return;
-    }
+    localStorage.removeItem("refreshToken");
     authApi
       .me()
       .then((data) => {
@@ -62,7 +44,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       login: async (email, password) => {
         const data = await authApi.login(email, password);
         localStorage.setItem("accessToken", data.accessToken);
-        localStorage.setItem("refreshToken", data.refreshToken);
+        localStorage.removeItem("refreshToken");
         setUser(data.user);
         const me = await authApi.me();
         setBusinessName(me.business?.name ?? null);

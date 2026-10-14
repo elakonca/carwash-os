@@ -1,4 +1,6 @@
 import { FormEvent, useMemo, useState } from "react";
+import { useDebouncedValue } from "@/hooks/use-debounced-value";
+import { withQuery } from "@/lib/paging";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
@@ -48,23 +50,27 @@ export function AcceptPage() {
   const [vehicle, setVehicle] = useState({ brand: "", model: "", color: "", year: "" });
 
   const normalized = useMemo(() => (plate ? normalizePlate(plate) : ""), [plate]);
+  const debouncedPlate = useDebouncedValue(normalized, 300);
 
   const matchQuery = useQuery({
-    queryKey: ["vehicle-plate", normalized],
-    enabled: normalized.length >= 5,
-    queryFn: () => api<{ items: VehicleMatch[] }>(`/vehicles?plate=${normalized}`),
+    queryKey: ["vehicle-plate", debouncedPlate],
+    enabled: debouncedPlate.length >= 5,
+    queryFn: () =>
+      api<{ items: VehicleMatch[] }>(withQuery("/vehicles", { plate: debouncedPlate, page: 1, pageSize: 5 })),
   });
   const match = matchQuery.data?.items[0];
 
   const servicesQuery = useQuery({
     queryKey: ["services"],
-    queryFn: () => api<{ items: Service[] }>("/services"),
+    queryFn: () => api<{ items: Service[] }>(withQuery("/services", { page: 1, pageSize: 100 })),
   });
 
   const zonesQuery = useQuery({
     queryKey: ["zones"],
     queryFn: () =>
-      api<{ items: { id: string; name: string; type: string; status: string }[] }>("/zones"),
+      api<{ items: { id: string; name: string; type: string; status: string }[] }>(
+        withQuery("/zones", { page: 1, pageSize: 100 }),
+      ),
   });
 
   const suggestedZones = useMemo(() => {

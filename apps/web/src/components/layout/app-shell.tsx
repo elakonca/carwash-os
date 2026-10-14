@@ -41,7 +41,6 @@ export function AppShell() {
           <div>
             <p className="text-sm font-semibold tracking-wide">Car Wash OS</p>
             <p className="text-xs text-white/60">{businessName}</p>
-            <p className="mt-0.5 text-[10px] uppercase tracking-wider text-brand-400">Demo</p>
           </div>
         </div>
         <nav className="flex-1 space-y-1 px-3 py-4">

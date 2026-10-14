@@ -2,26 +2,35 @@ import { Router } from "express";
 import {
   ACTIVE_WORK_ORDER_STATUSES,
   buildCustomerJourney,
+  paginationSchema,
   portalAppointmentSchema,
   portalTrackQuerySchema,
 } from "@carwash/shared";
 import { UnprocessableEntityError } from "../../lib/errors.js";
+import { pageArgs, pageMeta } from "../../lib/pagination.js";
 import { prisma } from "../../lib/prisma.js";
 import { currentUser, requireAuth } from "../../middleware/auth.js";
-import { asyncHandler, validateBody } from "../../middleware/error-handler.js";
+import { asyncHandler, validateBody, validateQuery } from "../../middleware/error-handler.js";
 
 export const portalRouter = Router();
 portalRouter.use(requireAuth);
 
 portalRouter.get(
   "/catalog",
+  validateQuery(paginationSchema),
   asyncHandler(async (req, res) => {
     const user = currentUser(req);
-    const items = await prisma.service.findMany({
-      where: { businessId: user.businessId, deletedAt: null, isActive: true },
-      orderBy: { name: "asc" },
-    });
-    res.json({ items });
+    const query = req.query as unknown as { page: number; pageSize: number; cursor?: string };
+    const where = { businessId: user.businessId, deletedAt: null, isActive: true };
+    const [items, total] = await Promise.all([
+      prisma.service.findMany({
+        where,
+        orderBy: [{ name: "asc" }, { id: "asc" }],
+        ...pageArgs(query),
+      }),
+      prisma.service.count({ where }),
+    ]);
+    res.json(pageMeta(items, total, query));
   }),
 );
 

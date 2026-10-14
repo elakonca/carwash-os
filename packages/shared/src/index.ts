@@ -7,5 +7,7 @@ export * from "./dto/common.js";
 export * from "./dto/auth.js";
 export * from "./dto/crm.js";
 export * from "./dto/work-orders.js";
+export * from "./dto/ops.js";
+export * from "./money.js";
 export * from "./journey.js";
 export * from "./dto/portal.js";

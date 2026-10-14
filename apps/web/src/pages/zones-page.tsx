@@ -6,6 +6,8 @@ import { api } from "@/lib/api";
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
 import { Card, Input } from "@/components/ui/forms";
+import { Pager } from "@/components/ui/pager";
+import { withQuery, type Page } from "@/lib/paging";
 
 type Zone = {
   id: string;
@@ -21,9 +23,10 @@ export function ZonesPage() {
   const queryClient = useQueryClient();
   const [form, setForm] = useState({ name: "", type: "PARK" as (typeof ZONE_TYPES)[number] });
 
+  const [page, setPage] = useState(1);
   const list = useQuery({
-    queryKey: ["zones"],
-    queryFn: () => api<{ items: Zone[] }>("/zones"),
+    queryKey: ["zones", page],
+    queryFn: () => api<Page<Zone>>(withQuery("/zones", { page, pageSize: 20 })),
   });
 
   const create = useMutation({
@@ -76,6 +79,7 @@ export function ZonesPage() {
           </Card>
         ))}
       </div>
+      <Pager page={page} pageSize={20} total={list.data?.total ?? 0} onPage={setPage} />
       {canManage ? (
         <Card className="max-w-md space-y-3 p-5">
           <h2 className="font-semibold">Yeni alan</h2>

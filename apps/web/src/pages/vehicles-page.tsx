@@ -5,6 +5,9 @@ import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Card, Input } from "@/components/ui/forms";
+import { Pager } from "@/components/ui/pager";
+import { useDebouncedValue } from "@/hooks/use-debounced-value";
+import { withQuery, type Page } from "@/lib/paging";
 
 type Vehicle = {
   id: string;
@@ -18,6 +21,8 @@ type Vehicle = {
 export function VehiclesPage() {
   const queryClient = useQueryClient();
   const [q, setQ] = useState("");
+  const [page, setPage] = useState(1);
+  const debouncedQ = useDebouncedValue(q, 300);
   const [form, setForm] = useState({
     customerId: "",
     plate: "",
@@ -28,12 +33,15 @@ export function VehiclesPage() {
   });
 
   const vehicles = useQuery({
-    queryKey: ["vehicles", q],
-    queryFn: () => api<{ items: Vehicle[] }>(`/vehicles?q=${encodeURIComponent(q)}`),
+    queryKey: ["vehicles", debouncedQ, page],
+    queryFn: () => api<Page<Vehicle>>(withQuery("/vehicles", { q: debouncedQ, page, pageSize: 20 })),
   });
   const customers = useQuery({
     queryKey: ["customers-min"],
-    queryFn: () => api<{ items: { id: string; firstName: string; lastName: string }[] }>("/customers?pageSize=100"),
+    queryFn: () =>
+      api<Page<{ id: string; firstName: string; lastName: string }>>(
+        withQuery("/customers", { page: 1, pageSize: 100 }),
+      ),
   });
 
   const create = useMutation({
@@ -62,7 +70,15 @@ export function VehiclesPage() {
       <div>
         <div className="mb-4 flex items-center justify-between">
           <h1 className="text-2xl font-semibold">Araçlar</h1>
-          <Input className="w-56" placeholder="Plaka / marka" value={q} onChange={(e) => setQ(e.target.value)} />
+          <Input
+            className="w-56"
+            placeholder="Plaka / marka"
+            value={q}
+            onChange={(e) => {
+              setQ(e.target.value);
+              setPage(1);
+            }}
+          />
         </div>
         <div className="space-y-2">
           {(vehicles.data?.items ?? []).map((vehicle) => (
@@ -78,6 +94,7 @@ export function VehiclesPage() {
             </Link>
           ))}
         </div>
+        <Pager page={page} pageSize={20} total={vehicles.data?.total ?? 0} onPage={setPage} />
       </div>
       <Card className="h-fit space-y-3 p-5">
         <h2 className="font-semibold">Yeni araç</h2>

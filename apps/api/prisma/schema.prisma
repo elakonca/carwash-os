@@ -161,6 +161,7 @@ model Customer {
 
   @@unique([businessId, phone])
   @@index([businessId])
+  @@index([businessId, createdAt])
   @@map("customers")
 }
 
@@ -186,6 +187,7 @@ model Vehicle {
 
   @@unique([businessId, plate])
   @@index([businessId])
+  @@index([businessId, createdAt])
   @@index([customerId])
   @@map("vehicles")
 }
@@ -207,6 +209,7 @@ model Service {
   appointmentServices AppointmentService[]
 
   @@index([businessId])
+  @@index([businessId, name])
   @@map("services")
 }
 
@@ -248,6 +251,7 @@ model Staff {
   statusLogs WorkOrderStatusLog[]
 
   @@index([businessId])
+  @@index([businessId, name])
   @@map("staff")
 }
 
@@ -290,6 +294,7 @@ model WorkOrder {
   @@unique([businessId, code])
   @@index([businessId, status])
   @@index([businessId, acceptedAt])
+  @@index([businessId, status, acceptedAt])
   @@index([vehicleId])
   @@index([customerId])
   @@map("work_orders")

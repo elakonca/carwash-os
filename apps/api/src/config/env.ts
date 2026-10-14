@@ -10,6 +10,16 @@ const envSchema = z.object({
   API_PORT: z.coerce.number().default(3001),
   WEB_ORIGIN: z.string().default("http://localhost:5173"),
   UPLOAD_DIR: z.string().default("./uploads"),
+  NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
+  REDIS_URL: z.string().min(1).optional(),
+  COOKIE_SECURE: z.enum(["true", "false"]).optional(),
 });
 
-export const env = envSchema.parse(process.env);
+const parsed = envSchema.parse(process.env);
+
+export const env = {
+  ...parsed,
+  COOKIE_SECURE: parsed.COOKIE_SECURE
+    ? parsed.COOKIE_SECURE === "true"
+    : parsed.NODE_ENV === "production",
+};

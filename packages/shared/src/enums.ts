@@ -27,7 +27,7 @@ export const WORK_ORDER_STATUSES = [
 ] as const;
 export type WorkOrderStatus = (typeof WORK_ORDER_STATUSES)[number];
 
-export const ACTIVE_WORK_ORDER_STATUSES = WORK_ORDER_STATUSES.filter(
+export const ACTIVE_WORK_ORDER_STATUSES: readonly WorkOrderStatus[] = WORK_ORDER_STATUSES.filter(
   (status) => status !== "DELIVERED" && status !== "CANCELLED",
 );
 

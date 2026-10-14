@@ -8,6 +8,8 @@ import {
   WORK_ORDER_STATUSES,
 } from "../enums.js";
 import { normalizePlate } from "../plate.js";
+import { moneySchema } from "../money.js";
+import { paginationSchema } from "./common.js";
 
 const customerInlineSchema = z.object({
   firstName: z.string().trim().min(1).max(80),
@@ -50,7 +52,7 @@ export const createWorkOrderSchema = z
 
 export type CreateWorkOrderInput = z.infer<typeof createWorkOrderSchema>;
 
-export const listWorkOrdersQuerySchema = z.object({
+export const listWorkOrdersQuerySchema = paginationSchema.extend({
   status: z.enum(["active", "all", ...WORK_ORDER_STATUSES]).optional(),
   date: z.enum(["today", "all"]).optional().default("all"),
   plate: z.string().optional(),
@@ -86,7 +88,7 @@ export type CreateDamageInput = z.infer<typeof createDamageSchema>;
 export const paymentSchema = z.object({
   method: z.enum(PAYMENT_METHODS),
   status: z.enum(PAYMENT_STATUSES),
-  amountOverride: z.coerce.number().min(0).optional(),
+  amountOverride: moneySchema.optional(),
 });
 
 export type PaymentInput = z.infer<typeof paymentSchema>;

@@ -19,6 +19,23 @@ type LockedZone = {
   deleted_at: Date | null;
 };
 
+export function zoneIdsInLockOrder(ids: Array<string | null | undefined>): string[] {
+  return [...new Set(ids.filter((id): id is string => Boolean(id)))].sort((left, right) =>
+    left < right ? -1 : left > right ? 1 : 0,
+  );
+}
+
+export async function lockZonesInOrder(
+  tx: Tx,
+  ids: Array<string | null | undefined>,
+): Promise<Map<string, LockedZone>> {
+  const locked = new Map<string, LockedZone>();
+  for (const id of zoneIdsInLockOrder(ids)) {
+    locked.set(id, await lockZone(tx, id));
+  }
+  return locked;
+}
+
 export async function lockZone(tx: Tx, zoneId: string): Promise<LockedZone> {
   const rows = await tx.$queryRaw<LockedZone[]>`
     SELECT id, business_id, name, type, status, current_work_order_id, deleted_at
@@ -96,6 +113,8 @@ export async function syncWorkOrderZone(params: {
 }): Promise<string | null> {
   const { tx, businessId, workOrderId, previousZoneId, nextStatus } = params;
   let nextZoneId = params.nextZoneId;
+
+  await lockZonesInOrder(tx, [previousZoneId, nextZoneId]);
 
   if (shouldReleaseZone(nextStatus)) {
     await releaseZoneIfOccupied(tx, previousZoneId, workOrderId);
